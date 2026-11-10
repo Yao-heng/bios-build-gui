@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bios-build-gui"
+version = "0.1.0"
+description = "BIOS build GUI: a working desktop tool that drives an EDK II build from configuration to a bootable OVMF image, verified in QEMU."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{name = "Yao Heng"}]
+dependencies = [
+    "PyQt6==6.12.0",
+]
+
+[project.scripts]
+bios-build-gui = "bios_build_gui.main:main"
+
+[tool.setuptools.packages.find]
+include = ["bios_build_gui*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
