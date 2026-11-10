@@ -5,6 +5,9 @@ Import tests live in the same file and are added with the import
 implementation (design step 5).
 """
 
+import json
+from pathlib import Path
+
 import pytest
 
 from bios_build_gui.adapters import ovmf
@@ -141,3 +144,121 @@ def test_validate_with_real_adapter(edk2_tree):
     )
     errors = validate(bad, ovmf)
     assert [e.code for e in errors] == ["invalid_pcd"]
+
+
+# --- import() (design step 5) -------------------------------------------
+
+
+def _fixture_path(name):
+    return Path(__file__).parent / "fixtures" / name
+
+
+def test_import_stock_dsc_fdf_yields_expected_config():
+    config, _warnings = ovmf.import_config(
+        _fixture_path("OvmfPkgX64.dsc"), _fixture_path("OvmfPkgX64.fdf")
+    )
+    expected = json.loads(_fixture_path("expected_config.json").read_text(encoding="utf-8"))
+    assert config == BuildConfig(**expected)
+    assert config.platform == "OvmfPkg"
+    assert config.architecture == "X64"
+    assert config.build_target == "DEBUG"
+    assert config.toolchain == "GCC5"
+    # Spot-check values against the stock DSC (hand-verified).
+    assert (
+        config.pcds["gEfiMdePkgTokenSpaceGuid.PcdDebugPrintErrorLevel"] == "0x8000004F"
+    )
+    assert config.pcds["gEfiMdePkgTokenSpaceGuid.PcdMaximumGuidedExtractHandler"] == "0x10"
+    assert (
+        config.pcds["gEfiMdeModulePkgTokenSpaceGuid.PcdSetupVideoHorizontalResolution"]
+        == "640"
+    )
+    assert config.pcds["gEfiMdePkgTokenSpaceGuid.PcdPlatformBootTimeOut"] == "0"
+    assert len(config.pcds) == 62
+
+
+def test_import_unmapped_fields_appear_in_warnings():
+    _config, warnings = ovmf.import_config(
+        _fixture_path("OvmfPkgX64.dsc"), _fixture_path("OvmfPkgX64.fdf")
+    )
+    names = [w["name"] for w in warnings]
+    assert any(name.startswith("include:") for name in names)
+    assert "SECURE_BOOT_ENABLE" in names  # a DEFINE
+    assert any(name.startswith("LibraryClasses.") for name in names)
+    assert "OvmfPkg/ResetVector/ResetVector.inf" in names  # a component
+    assert not any(name.startswith("!") for name in names)  # no directives
+    assert len(warnings) > 0
+
+
+def test_import_duplicate_pcd_warning():
+    _config, warnings = ovmf.import_config(
+        _fixture_path("OvmfPkgX64.dsc"), _fixture_path("OvmfPkgX64.fdf")
+    )
+    dup = [
+        w
+        for w in warnings
+        if w["name"] == "gEfiMdeModulePkgTokenSpaceGuid.PcdMaxVariableSize"
+    ]
+    assert len(dup) == 1
+    assert "0x8400" in dup[0]["value"] and "0x2000" in dup[0]["value"]
+
+
+def test_import_missing_dsc_raises():
+    with pytest.raises(FileNotFoundError, match="DSC"):
+        ovmf.import_config("/does/not/exist.dsc", None)
+
+
+def test_import_missing_fdf_raises():
+    with pytest.raises(FileNotFoundError, match="FDF"):
+        ovmf.import_config(_fixture_path("OvmfPkgX64.dsc"), "/does/not/exist.fdf")
+
+
+def test_import_without_fdf_skips_fdf_check():
+    config, warnings = ovmf.import_config(_fixture_path("OvmfPkgX64.dsc"), None)
+    assert config.platform == "OvmfPkg"
+    assert not any(w["name"] == "FDF" for w in warnings)
+
+
+def test_import_fdf_without_ovmf_warns(tmp_path):
+    fdf = tmp_path / "other.fdf"
+    fdf.write_text("[FD.OTHER]\nBaseAddress = 0x0\n", encoding="utf-8")
+    _config, warnings = ovmf.import_config(_fixture_path("OvmfPkgX64.dsc"), fdf)
+    assert any(w["name"] == "FDF" for w in warnings)
+
+
+def test_import_resolves_includes_in_tree(edk2_tree):
+    config, warnings = ovmf.import_config(
+        edk2_tree / "OvmfPkg" / "OvmfPkgX64.dsc",
+        edk2_tree / "OvmfPkg" / "OvmfPkgX64.fdf",
+    )
+    # The PCD from the !include'd .dsc.inc file is imported.
+    assert (
+        config.pcds["gEfiMdeModulePkgTokenSpaceGuid.PcdResetOnMemoryTypeInformationChange"]
+        == "FALSE"
+    )
+    names = [w["name"] for w in warnings]
+    assert not any(name.startswith("include:") for name in names)
+    assert "SECURE_BOOT_ENABLE" in names
+    assert "LibraryClasses.BaseLib" in names
+    assert "OvmfPkg/Sec/SecMain.inf" in names
+
+
+def test_import_round_trip_preserves_pcds(edk2_tree):
+    config, _warnings = ovmf.import_config(
+        _fixture_path("OvmfPkgX64.dsc"), _fixture_path("OvmfPkgX64.fdf")
+    )
+    dsc_path, _fdf_path, command, _image = ovmf.generate(config)
+    generated = dsc_path.read_text(encoding="utf-8")
+    assert "gEfiMdePkgTokenSpaceGuid.PcdDebugPrintErrorLevel|0x8000004F" in generated
+    assert "gEfiMdePkgTokenSpaceGuid.PcdMaximumGuidedExtractHandler|0x10" in generated
+    assert "gEfiMdeModulePkgTokenSpaceGuid.PcdSetupVideoHorizontalResolution|640" in generated
+    assert command == [
+        "build",
+        "-p",
+        "Generated/OvmfPkgX64.dsc",
+        "-a",
+        "X64",
+        "-t",
+        "GCC5",
+        "-b",
+        "DEBUG",
+    ]

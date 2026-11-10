@@ -57,6 +57,8 @@ import re
 import shutil
 from pathlib import Path
 
+from bios_build_gui.config import BuildConfig
+
 PLATFORM = "OvmfPkg"
 SUPPORTED_ARCHITECTURES = {"X64"}
 SUPPORTED_BUILD_TARGETS = {"DEBUG", "RELEASE", "NOOPT"}
@@ -232,23 +234,28 @@ def _resolve_include(include_target, including_file, workspace):
     """Resolve an ``!include`` target to a file, or None if unresolvable.
 
     EDK II resolves includes relative to the workspace; fall back to the
-    including file's directory.
+    including file's directory and its parent (the OvmfPkg layout, when
+    no workspace is configured).
     """
-    candidate = workspace / include_target
+    if workspace is not None:
+        candidate = workspace / include_target
+        if candidate.is_file():
+            return candidate
+    candidate = including_file.parent / include_target
     if candidate.is_file():
         return candidate
-    candidate = including_file.parent / include_target
+    candidate = including_file.parent.parent / include_target
     if candidate.is_file():
         return candidate
     return None
 
 
-def _collect_dsc_chain(dsc_path, workspace, _depth=0, _seen=None):
+def _collect_dsc_chain(dsc_path, workspace, _depth=0, _seen=None, warnings=None):
     """Return the DSC file plus every file its ``!include`` chain resolves to.
 
     Cycles are guarded by the seen set; depth is bounded at 10.
-    Unresolvable includes are skipped (the caller that needs them — the
-    importer — records them as warnings instead).
+    Unresolvable includes are skipped; when ``warnings`` is a list, one
+    warning per unresolvable include is appended to it.
     """
     if _seen is None:
         _seen = set()
@@ -267,7 +274,16 @@ def _collect_dsc_chain(dsc_path, workspace, _depth=0, _seen=None):
             continue
         target = _resolve_include(match.group(1), dsc_path, workspace)
         if target is not None:
-            files.extend(_collect_dsc_chain(target, workspace, _depth + 1, _seen))
+            files.extend(
+                _collect_dsc_chain(target, workspace, _depth + 1, _seen, warnings)
+            )
+        elif warnings is not None:
+            warnings.append(
+                {
+                    "name": f"include:{match.group(1)}",
+                    "value": "unresolved; its PCDs were not imported",
+                }
+            )
     return files
 
 
@@ -282,3 +298,188 @@ def _referenced_packages(dsc_path, workspace):
         for match in _PACKAGE_RE.finditer(text):
             packages.add(match.group(1))
     return packages
+
+
+_KEYVAL_RE = re.compile(r"^\s*([A-Za-z0-9_]+)\s*=\s*(.*?)\s*$")
+_DEFINE_RE = re.compile(r"^\s*DEFINE\s+([A-Za-z0-9_]+)\s*=\s*(.*?)\s*$")
+
+
+def _keyval_entries(lines):
+    """Extract ``(KEY, value)`` pairs from ``KEY = value`` lines."""
+    entries = []
+    for line in lines:
+        if line.startswith("!"):
+            continue
+        match = _KEYVAL_RE.match(line)
+        if match:
+            entries.append((match.group(1), match.group(2)))
+    return entries
+
+
+def import_config(dsc_path, fdf_path=None):
+    """Import a DSC/FDF pair into a config (the design's ``import`` interface).
+
+    The function is named ``import_config`` because ``import`` is a Python
+    keyword. Returns ``(config, warnings)``. ``fdf_path`` may be None
+    (the FDF is then skipped). Warnings are dicts with ``name`` and
+    ``value`` keys; anything that does not map to the schema goes to the
+    warnings list, never silently dropped.
+
+    Defaults the DSC cannot supply: the DSC names no single build target
+    (``BUILD_TARGETS`` is a list) and no toolchain, so the import
+    defaults to build target ``DEBUG`` and toolchain ``GCC5``; the user
+    can change them in the GUI. PCD lines inside ``!if`` blocks are
+    collected (the condition is a build-time flag the parser does not
+    evaluate); a PCD assigned more than once with different values keeps
+    the last value and produces a warning.
+    """
+    from bios_build_gui.config import SCHEMA_VERSION
+
+    dsc_path = Path(dsc_path)
+    if not dsc_path.is_file():
+        raise FileNotFoundError(f"DSC file not found: {dsc_path}")
+    if fdf_path is not None:
+        fdf_path = Path(fdf_path)
+        if not fdf_path.is_file():
+            raise FileNotFoundError(f"FDF file not found: {fdf_path}")
+
+    warnings: list[dict] = []
+    workspace = _workspace
+    defines: dict[str, str] = {}
+    pcds: dict[str, str] = {}
+    for path in _collect_dsc_chain(dsc_path, workspace, warnings=warnings):
+        text = path.read_text(encoding="utf-8", errors="replace")
+        for section, section_lines in _iter_sections(text):
+            if section == "Defines":
+                for key, value in _keyval_entries(section_lines):
+                    defines[key] = value
+                for line in section_lines:
+                    match = _DEFINE_RE.match(line)
+                    if match:
+                        warnings.append(
+                            {"name": match.group(1), "value": match.group(2)}
+                        )
+            elif section in PCD_SECTIONS:
+                for name, value in _pcd_entries(section_lines):
+                    if name in pcds and pcds[name] != value:
+                        warnings.append(
+                            {
+                                "name": name,
+                                "value": (
+                                    "assigned more than once with different values; "
+                                    f"kept {value!r}, dropped {pcds[name]!r}"
+                                ),
+                            }
+                        )
+                    pcds[name] = value
+            elif section == "LibraryClasses":
+                for line in section_lines:
+                    if line.startswith("!"):
+                        continue
+                    if "|" in line:
+                        cls, instance = line.split("|", 1)
+                        warnings.append(
+                            {
+                                "name": f"LibraryClasses.{cls.strip()}",
+                                "value": instance.strip(),
+                            }
+                        )
+                    else:
+                        warnings.append({"name": "LibraryClasses", "value": line})
+            elif section == "Components":
+                for line in section_lines:
+                    if line.startswith("!"):
+                        continue
+                    warnings.append({"name": line, "value": "component"})
+            elif section is not None:
+                warnings.append(
+                    {"name": f"[{section}]", "value": "section not mapped to the schema"}
+                )
+
+    platform_name = defines.get("PLATFORM_NAME")
+    if platform_name == "Ovmf":
+        platform = "OvmfPkg"
+    else:
+        warnings.append(
+            {
+                "name": "PLATFORM_NAME",
+                "value": (
+                    f"unexpected value {platform_name!r}; "
+                    "this adapter serves OvmfPkg"
+                ),
+            }
+        )
+        platform = "OvmfPkg"
+
+    architectures = [
+        arch.strip()
+        for arch in defines.get("SUPPORTED_ARCHITECTURES", "X64").split("|")
+        if arch.strip()
+    ]
+    if "X64" in architectures:
+        architecture = "X64"
+    elif architectures:
+        architecture = architectures[0]
+        warnings.append(
+            {
+                "name": "SUPPORTED_ARCHITECTURES",
+                "value": (
+                    f"X64 is not listed ({defines.get('SUPPORTED_ARCHITECTURES')!r}); "
+                    f"using {architecture!r}"
+                ),
+            }
+        )
+    else:
+        architecture = "X64"
+
+    if fdf_path is not None:
+        fd_names, _fv_names = _parse_fdf(fdf_path)
+        if "OVMF" not in fd_names:
+            warnings.append(
+                {
+                    "name": "FDF",
+                    "value": "no [FD.OVMF] region found; output may not be OVMF.fd",
+                }
+            )
+
+    # Deduplicate identical warnings (the same DEFINE or library class can
+    # appear in several arch-qualified sections); keep first occurrence.
+    seen_warnings: set[tuple[str, str]] = set()
+    deduped_warnings: list[dict] = []
+    for warning in warnings:
+        key = (warning["name"], warning["value"])
+        if key not in seen_warnings:
+            seen_warnings.add(key)
+            deduped_warnings.append(warning)
+    warnings = deduped_warnings
+
+    config = BuildConfig(
+        schema_version=SCHEMA_VERSION,
+        platform=platform,
+        architecture=architecture,
+        build_target="DEBUG",
+        toolchain="GCC5",
+        pcds=pcds,
+    )
+    return config, warnings
+
+
+def _parse_fdf(fdf_path):
+    """Return ``(fd_names, fv_names)`` from an FDF file."""
+    fd_names: list[str] = []
+    fv_names: list[str] = []
+    text = Path(fdf_path).read_text(encoding="utf-8", errors="replace")
+    for raw in text.splitlines():
+        line = raw.strip()
+        match = _SECTION_RE.match(line)
+        if not match:
+            continue
+        header = match.group(1)
+        if "." not in header:
+            continue
+        kind, name = header.split(".", 1)
+        if kind == "FD":
+            fd_names.append(name)
+        elif kind == "FV":
+            fv_names.append(name)
+    return fd_names, fv_names
