@@ -67,9 +67,7 @@ def test_full_output_written_to_log(tmp_path):
 
 
 def test_command_invoked_without_shell(tmp_path):
-    with mock.patch.object(
-        build_runner.subprocess, "Popen", wraps=subprocess.Popen
-    ) as popen_mock:
+    with mock.patch.object(build_runner.subprocess, "Popen", wraps=subprocess.Popen) as popen_mock:
         run_build(DUMMY_OK, tmp_path, tmp_path / "build.log", lambda line: None, None)
     assert popen_mock.called
     assert popen_mock.call_args.kwargs["shell"] is False

@@ -53,9 +53,7 @@ def test_generate_produces_dsc_fdf_command_and_image_path(edk2_tree, config):
     assert "!include OvmfPkg/OvmfPkgX64.dsc" in generated_dsc
     assert "FLASH_DEFINITION = Generated/OvmfPkgX64.fdf" in generated_dsc
     assert "[PcdsFixedAtBuild]" in generated_dsc
-    assert (
-        "gEfiMdePkgTokenSpaceGuid.PcdDebugPrintErrorLevel|0x8000004F" in generated_dsc
-    )
+    assert "gEfiMdePkgTokenSpaceGuid.PcdDebugPrintErrorLevel|0x8000004F" in generated_dsc
     assert fdf_path.read_text(encoding="utf-8") == stock_fdf_before
 
     # Generation never overwrites a stock file.
@@ -103,9 +101,7 @@ def test_get_pcd_names_from_tree(edk2_tree):
     assert "gEfiMdeModulePkgTokenSpaceGuid.PcdEmuVariableNvStoreReserved" in names
     assert "gUefiOvmfPkgTokenSpaceGuid.PcdPciIoBase" in names
     # From the !include'd .dsc.inc file.
-    assert (
-        "gEfiMdeModulePkgTokenSpaceGuid.PcdResetOnMemoryTypeInformationChange" in names
-    )
+    assert "gEfiMdeModulePkgTokenSpaceGuid.PcdResetOnMemoryTypeInformationChange" in names
     # From the DEC file of a package referenced by the DSC.
     assert "gEfiMdePkgTokenSpaceGuid.PcdDecOnlyExample" in names
     # No hard-coded list: the set is exactly what the tree declares.
@@ -164,14 +160,9 @@ def test_import_stock_dsc_fdf_yields_expected_config():
     assert config.build_target == "DEBUG"
     assert config.toolchain == "GCC5"
     # Spot-check values against the stock DSC (hand-verified).
-    assert (
-        config.pcds["gEfiMdePkgTokenSpaceGuid.PcdDebugPrintErrorLevel"] == "0x8000004F"
-    )
+    assert config.pcds["gEfiMdePkgTokenSpaceGuid.PcdDebugPrintErrorLevel"] == "0x8000004F"
     assert config.pcds["gEfiMdePkgTokenSpaceGuid.PcdMaximumGuidedExtractHandler"] == "0x10"
-    assert (
-        config.pcds["gEfiMdeModulePkgTokenSpaceGuid.PcdSetupVideoHorizontalResolution"]
-        == "640"
-    )
+    assert config.pcds["gEfiMdeModulePkgTokenSpaceGuid.PcdSetupVideoHorizontalResolution"] == "640"
     assert config.pcds["gEfiMdePkgTokenSpaceGuid.PcdPlatformBootTimeOut"] == "0"
     assert len(config.pcds) == 62
 
@@ -193,11 +184,7 @@ def test_import_duplicate_pcd_warning():
     _config, warnings = ovmf.import_config(
         _fixture_path("OvmfPkgX64.dsc"), _fixture_path("OvmfPkgX64.fdf")
     )
-    dup = [
-        w
-        for w in warnings
-        if w["name"] == "gEfiMdeModulePkgTokenSpaceGuid.PcdMaxVariableSize"
-    ]
+    dup = [w for w in warnings if w["name"] == "gEfiMdeModulePkgTokenSpaceGuid.PcdMaxVariableSize"]
     assert len(dup) == 1
     assert "0x8400" in dup[0]["value"] and "0x2000" in dup[0]["value"]
 

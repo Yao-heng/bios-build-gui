@@ -179,9 +179,7 @@ def _is_edk2_workspace(workdir):
 
 
 def _basetools_binaries_present(workdir):
-    return (
-        workdir / "BaseTools" / "BinWrappers" / "PosixLike" / "build"
-    ).is_file()
+    return (workdir / "BaseTools" / "BinWrappers" / "PosixLike" / "build").is_file()
 
 
 def _prune_logs(log_path, keep=_LOG_KEEP):

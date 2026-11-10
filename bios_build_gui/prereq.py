@@ -131,9 +131,7 @@ def _check_basetools(settings):
     expected = "built"
     path = Path(settings.edk2_path) if settings.edk2_path else None
     wrapper = (
-        path / "BaseTools" / "BinWrappers" / "PosixLike" / "build"
-        if path is not None
-        else None
+        path / "BaseTools" / "BinWrappers" / "PosixLike" / "build" if path is not None else None
     )
     if wrapper is not None and wrapper.is_file():
         return CheckResult(name, "ok", "built", expected, "")
@@ -225,13 +223,8 @@ def _check_qemu(settings):
 
 def _check_python_pyqt():
     name = "Python/PyQt"
-    expected = (
-        f"Python >={_format_version(PINNED_PYTHON_MINIMUM)}, "
-        f"PyQt6 >={PINNED_PYQT6_MINIMUM}"
-    )
-    py_version = (
-        f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
-    )
+    expected = f"Python >={_format_version(PINNED_PYTHON_MINIMUM)}, PyQt6 >={PINNED_PYQT6_MINIMUM}"
+    py_version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
     if sys.version_info[:2] < PINNED_PYTHON_MINIMUM:
         return CheckResult(
             name,
@@ -261,19 +254,14 @@ def _check_python_pyqt():
             "mismatched",
             f"Python {py_version}, PyQt6 {qt_version}",
             expected,
-            f"PyQt6 {qt_version} is below the minimum {PINNED_PYQT6_MINIMUM}. "
-            "Upgrade PyQt6.",
+            f"PyQt6 {qt_version} is below the minimum {PINNED_PYQT6_MINIMUM}. Upgrade PyQt6.",
         )
-    return CheckResult(
-        name, "ok", f"Python {py_version}, PyQt6 {qt_version}", expected, ""
-    )
+    return CheckResult(name, "ok", f"Python {py_version}, PyQt6 {qt_version}", expected, "")
 
 
 def _first_line_of(command):
     try:
-        proc = subprocess.run(
-            command, capture_output=True, text=True, timeout=10
-        )
+        proc = subprocess.run(command, capture_output=True, text=True, timeout=10)
     except (OSError, subprocess.TimeoutExpired):
         return ""
     if not proc.stdout:

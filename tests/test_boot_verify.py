@@ -58,9 +58,7 @@ def test_cancellation_kills_qemu(tmp_path, fake_qemu_on_path, monkeypatch):
     timer.start()
     start = time.monotonic()
     try:
-        booted, _output = verify_boot(
-            tmp_path / "OVMF.fd", timeout=30, cancel_event=cancel_event
-        )
+        booted, _output = verify_boot(tmp_path / "OVMF.fd", timeout=30, cancel_event=cancel_event)
     finally:
         timer.cancel()
     assert booted is False

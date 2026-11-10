@@ -7,9 +7,7 @@ from bios_build_gui.settings import Settings, load_settings, save_settings
 
 
 def test_load_missing_file_returns_defaults(tmp_path, monkeypatch):
-    monkeypatch.setattr(
-        settings_mod.shutil, "which", lambda name: "/usr/bin/qemu-system-x86_64"
-    )
+    monkeypatch.setattr(settings_mod.shutil, "which", lambda name: "/usr/bin/qemu-system-x86_64")
     loaded = load_settings(tmp_path / "settings.json")
     assert loaded.edk2_path == ""
     assert loaded.qemu_path == "/usr/bin/qemu-system-x86_64"
@@ -40,13 +38,9 @@ def test_missing_qemu_path_key_defaults_to_qemu_on_path(tmp_path, monkeypatch):
 
 
 def test_explicit_empty_qemu_path_is_preserved(tmp_path, monkeypatch):
-    monkeypatch.setattr(
-        settings_mod.shutil, "which", lambda name: "/usr/bin/qemu-system-x86_64"
-    )
+    monkeypatch.setattr(settings_mod.shutil, "which", lambda name: "/usr/bin/qemu-system-x86_64")
     path = tmp_path / "settings.json"
-    path.write_text(
-        json.dumps({"edk2_path": "/home/user/edk2", "qemu_path": ""}), encoding="utf-8"
-    )
+    path.write_text(json.dumps({"edk2_path": "/home/user/edk2", "qemu_path": ""}), encoding="utf-8")
     loaded = load_settings(path)
     assert loaded.qemu_path == ""
 

@@ -274,9 +274,7 @@ def _collect_dsc_chain(dsc_path, workspace, _depth=0, _seen=None, warnings=None)
             continue
         target = _resolve_include(match.group(1), dsc_path, workspace)
         if target is not None:
-            files.extend(
-                _collect_dsc_chain(target, workspace, _depth + 1, _seen, warnings)
-            )
+            files.extend(_collect_dsc_chain(target, workspace, _depth + 1, _seen, warnings))
         elif warnings is not None:
             warnings.append(
                 {
@@ -356,9 +354,7 @@ def import_config(dsc_path, fdf_path=None):
                 for line in section_lines:
                     match = _DEFINE_RE.match(line)
                     if match:
-                        warnings.append(
-                            {"name": match.group(1), "value": match.group(2)}
-                        )
+                        warnings.append({"name": match.group(1), "value": match.group(2)})
             elif section in PCD_SECTIONS:
                 for name, value in _pcd_entries(section_lines):
                     if name in pcds and pcds[name] != value:
@@ -403,10 +399,7 @@ def import_config(dsc_path, fdf_path=None):
         warnings.append(
             {
                 "name": "PLATFORM_NAME",
-                "value": (
-                    f"unexpected value {platform_name!r}; "
-                    "this adapter serves OvmfPkg"
-                ),
+                "value": (f"unexpected value {platform_name!r}; this adapter serves OvmfPkg"),
             }
         )
         platform = "OvmfPkg"
