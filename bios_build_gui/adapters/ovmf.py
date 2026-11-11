@@ -62,7 +62,7 @@ from bios_build_gui.config import BuildConfig
 PLATFORM = "OvmfPkg"
 SUPPORTED_ARCHITECTURES = {"X64"}
 SUPPORTED_BUILD_TARGETS = {"DEBUG", "RELEASE", "NOOPT"}
-SUPPORTED_TOOLCHAINS = {"GCC5"}
+SUPPORTED_TOOLCHAINS = {"GCC"}
 
 STOCK_DSC_REL = Path("OvmfPkg") / "OvmfPkgX64.dsc"
 STOCK_FDF_REL = Path("OvmfPkg") / "OvmfPkgX64.fdf"
@@ -325,7 +325,7 @@ def import_config(dsc_path, fdf_path=None):
 
     Defaults the DSC cannot supply: the DSC names no single build target
     (``BUILD_TARGETS`` is a list) and no toolchain, so the import
-    defaults to build target ``DEBUG`` and toolchain ``GCC5``; the user
+    defaults to build target ``DEBUG`` and toolchain ``GCC``; the user
     can change them in the GUI. PCD lines inside ``!if`` blocks are
     collected (the condition is a build-time flag the parser does not
     evaluate); a PCD assigned more than once with different values keeps
@@ -451,7 +451,7 @@ def import_config(dsc_path, fdf_path=None):
         platform=platform,
         architecture=architecture,
         build_target="DEBUG",
-        toolchain="GCC5",
+        toolchain="GCC",
         pcds=pcds,
     )
     return config, warnings

@@ -52,7 +52,7 @@ class BuildConfig:
     platform: str = "OvmfPkg"
     architecture: str = "X64"
     build_target: str = "DEBUG"
-    toolchain: str = "GCC5"
+    toolchain: str = "GCC"
     pcds: dict[str, str] = field(default_factory=dict)
 
 

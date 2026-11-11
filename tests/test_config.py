@@ -19,7 +19,7 @@ class StubAdapter:
     PLATFORM = "OvmfPkg"
     SUPPORTED_ARCHITECTURES = {"X64"}
     SUPPORTED_BUILD_TARGETS = {"DEBUG", "RELEASE", "NOOPT"}
-    SUPPORTED_TOOLCHAINS = {"GCC5"}
+    SUPPORTED_TOOLCHAINS = {"GCC"}
     PCD_NAMES = {
         "gEfiMdePkgTokenSpaceGuid.PcdDebugPrintErrorLevel",
         "gEfiMdeModulePkgTokenSpaceGuid.PcdStatusCodeMemorySize",
@@ -41,7 +41,7 @@ def valid_config():
         platform="OvmfPkg",
         architecture="X64",
         build_target="DEBUG",
-        toolchain="GCC5",
+        toolchain="GCC",
         pcds={"gEfiMdePkgTokenSpaceGuid.PcdDebugPrintErrorLevel": "0x8000004F"},
     )
 
@@ -135,7 +135,7 @@ def test_unknown_schema_version_rejected_with_version_named(tmp_path):
                 "platform": "OvmfPkg",
                 "architecture": "X64",
                 "build_target": "DEBUG",
-                "toolchain": "GCC5",
+                "toolchain": "GCC",
                 "pcds": {},
             }
         ),

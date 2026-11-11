@@ -21,7 +21,7 @@ def config():
         platform="OvmfPkg",
         architecture="X64",
         build_target="DEBUG",
-        toolchain="GCC5",
+        toolchain="GCC",
         pcds={"gEfiMdePkgTokenSpaceGuid.PcdDebugPrintErrorLevel": "0x8000004F"},
     )
 
@@ -43,11 +43,11 @@ def test_generate_produces_dsc_fdf_command_and_image_path(edk2_tree, config):
         "-a",
         "X64",
         "-t",
-        "GCC5",
+        "GCC",
         "-b",
         "DEBUG",
     ]
-    assert image_path == edk2_tree / "Build" / "OvmfX64" / "DEBUG_GCC5" / "FV" / "OVMF.fd"
+    assert image_path == edk2_tree / "Build" / "OvmfX64" / "DEBUG_GCC" / "FV" / "OVMF.fd"
 
     generated_dsc = dsc_path.read_text(encoding="utf-8")
     assert "!include OvmfPkg/OvmfPkgX64.dsc" in generated_dsc
@@ -65,7 +65,7 @@ def test_generate_release_build_target(edk2_tree, config):
     config.build_target = "RELEASE"
     _dsc, _fdf, command, image_path = ovmf.generate(config)
     assert command[-2:] == ["-b", "RELEASE"]
-    assert image_path == edk2_tree / "Build" / "OvmfX64" / "RELEASE_GCC5" / "FV" / "OVMF.fd"
+    assert image_path == edk2_tree / "Build" / "OvmfX64" / "RELEASE_GCC" / "FV" / "OVMF.fd"
 
 
 def test_generate_with_no_pcds_still_emits_pcd_section(edk2_tree, config):
@@ -127,7 +127,7 @@ def test_validate_with_real_adapter(edk2_tree):
         platform="OvmfPkg",
         architecture="X64",
         build_target="DEBUG",
-        toolchain="GCC5",
+        toolchain="GCC",
         pcds={"gEfiMdePkgTokenSpaceGuid.PcdDebugPrintErrorLevel": "0x8000004F"},
     )
     assert validate(good, ovmf) == []
@@ -135,7 +135,7 @@ def test_validate_with_real_adapter(edk2_tree):
         platform="OvmfPkg",
         architecture="X64",
         build_target="DEBUG",
-        toolchain="GCC5",
+        toolchain="GCC",
         pcds={"NotARealPcd": "1"},
     )
     errors = validate(bad, ovmf)
@@ -158,7 +158,7 @@ def test_import_stock_dsc_fdf_yields_expected_config():
     assert config.platform == "OvmfPkg"
     assert config.architecture == "X64"
     assert config.build_target == "DEBUG"
-    assert config.toolchain == "GCC5"
+    assert config.toolchain == "GCC"
     # Spot-check values against the stock DSC (hand-verified).
     assert config.pcds["gEfiMdePkgTokenSpaceGuid.PcdDebugPrintErrorLevel"] == "0x8000004F"
     assert config.pcds["gEfiMdePkgTokenSpaceGuid.PcdMaximumGuidedExtractHandler"] == "0x10"
@@ -245,7 +245,7 @@ def test_import_round_trip_preserves_pcds(edk2_tree):
         "-a",
         "X64",
         "-t",
-        "GCC5",
+        "GCC",
         "-b",
         "DEBUG",
     ]
