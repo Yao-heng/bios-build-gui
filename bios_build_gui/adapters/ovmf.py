@@ -17,12 +17,15 @@ the workspace is not configured.
 Generation
 ----------
 ``generate`` writes a thin-wrapper DSC into ``<workspace>/Generated/``:
-it ``!include``s the stock ``OvmfPkg/OvmfPkgX64.dsc``, sets
-``FLASH_DEFINITION`` to the generated FDF path (after the include, so it
-overrides the stock value), and sets the configured PCD values in a
-``[PcdsFixedAtBuild]`` section (overriding the stock values). The
-generated FDF is a copy of the stock ``OvmfPkg/OvmfPkgX64.fdf`` (v1 does
-not change the flash layout). Generation never overwrites a stock file.
+it ``!include``s the stock ``OvmfPkg/OvmfPkgX64.dsc`` and sets the
+configured PCD values in a ``[PcdsFixedAtBuild]`` section (overriding the
+stock values). It does NOT set ``FLASH_DEFINITION``: a second ``[Defines]``
+section after the ``!include`` makes the EDK II parser drop the stock
+defines (including ``SUPPORTED_ARCHITECTURES``), failing the build with
+error 5000 (E2E finding, 2026-11-11). The build therefore uses the stock
+FDF path from the stock DSC; the generated FDF is a copy of the stock
+``OvmfPkg/OvmfPkgX64.fdf`` (v1 does not change the flash layout), so the
+output is identical. Generation never overwrites a stock file.
 ``generate`` assumes a validated config (the GUI validates before
 calling it); it does not re-validate.
 
@@ -127,9 +130,6 @@ def generate(config):
         "#",
         "",
         "!include OvmfPkg/OvmfPkgX64.dsc",
-        "",
-        "[Defines]",
-        f"  FLASH_DEFINITION = {GENERATED_DIRNAME}/{GENERATED_FDF_NAME}",
         "",
         "[PcdsFixedAtBuild]",
     ]
