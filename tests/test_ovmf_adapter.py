@@ -51,10 +51,12 @@ def test_generate_produces_dsc_fdf_command_and_image_path(edk2_tree, config):
 
     generated_dsc = dsc_path.read_text(encoding="utf-8")
     assert "!include OvmfPkg/OvmfPkgX64.dsc" in generated_dsc
-    # No [Defines] section: a second one after the !include makes the
-    # EDK II parser drop the stock defines (error 5000, E2E 2026-11-11).
-    assert "[Defines]" not in generated_dsc
-    assert "FLASH_DEFINITION" not in generated_dsc
+    # The wrapper has its own complete [Defines]: the EDK II parser reads
+    # the header values only from the top-level DSC's own [Defines]
+    # (error 5000, diagnosed 2026-11-15).
+    assert "[Defines]" in generated_dsc
+    assert "SUPPORTED_ARCHITECTURES        = X64" in generated_dsc
+    assert "FLASH_DEFINITION               = Generated/OvmfPkgX64.fdf" in generated_dsc
     assert "[PcdsFixedAtBuild]" in generated_dsc
     assert "gEfiMdePkgTokenSpaceGuid.PcdDebugPrintErrorLevel|0x8000004F" in generated_dsc
     assert fdf_path.read_text(encoding="utf-8") == stock_fdf_before
