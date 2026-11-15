@@ -54,12 +54,31 @@ STEPS = ["Prerequisites", "Select platform", "Configure", "Build", "Verify"]
 DEFAULT_CONFIG = BuildConfig()
 
 
+def _verify_display_text(verdict, output, timeout, cancelled):
+    """Map a boot-verify verdict to the display text (I4 v2).
+
+    A cancelled run shows "Cancelled", not a failure verdict. The
+    trace is appended to the output, so the operation record is shown
+    on success too.
+    """
+    if cancelled:
+        return "Cancelled"
+    if verdict == boot_verify_mod.VERDICT_BOOTED:
+        return "Booted: UEFI shell prompt observed.\n" + output
+    if verdict == boot_verify_mod.VERDICT_BOOT_TO_SHELL_FAIL:
+        return (
+            "Boot to shell failed: firmware reached the Boot Manager but the "
+            f"shell prompt was not observed within {timeout} s.\n" + output
+        )
+    return f"Not booted: firmware did not reach the Boot Manager within {timeout} s.\n" + output
+
+
 class _Worker(QThread):
     """Run a build or a boot verify off the GUI thread."""
 
     log_line = pyqtSignal(str)
     build_finished = pyqtSignal(int)
-    verify_finished = pyqtSignal(bool, str)
+    verify_finished = pyqtSignal(str, str)
 
     def __init__(self, kind, **kwargs):
         super().__init__()
@@ -76,10 +95,10 @@ class _Worker(QThread):
             )
             self.build_finished.emit(rc)
         else:
-            booted, output = boot_verify_mod.verify_boot(
+            verdict, output = boot_verify_mod.verify_boot(
                 cancel_event=self.cancel_event, **self._kwargs
             )
-            self.verify_finished.emit(booted, output)
+            self.verify_finished.emit(verdict, output)
 
 
 class MainWindow(QMainWindow):
@@ -508,19 +527,24 @@ class MainWindow(QMainWindow):
             return
         self._verdict_label.setText("Booting in QEMU...")
         self._set_build_running(True)
-        self._worker = _Worker("verify", image_path=self._image_path, timeout=60)
+        self._worker = _Worker(
+            "verify", image_path=self._image_path, timeout=boot_verify_mod.DEFAULT_TIMEOUT
+        )
         self._worker.verify_finished.connect(self._on_verify_finished)
         self._worker.start()
 
-    def _on_verify_finished(self, booted, output):
+    def _on_verify_finished(self, verdict, output):
+        cancelled = self._worker is not None and self._worker.cancel_event.is_set()
         self._worker = None
         self._set_build_running(False)
-        if booted:
-            self._verdict_label.setText("Booted: UEFI shell prompt observed.")
-        else:
-            self._verdict_label.setText(
-                "Not booted: shell prompt not observed within 60 s.\n" + output
+        self._verdict_label.setText(
+            _verify_display_text(
+                verdict,
+                output,
+                timeout=boot_verify_mod.DEFAULT_TIMEOUT,
+                cancelled=cancelled,
             )
+        )
 
     # -- cancel / close ---------------------------------------------------------
 

@@ -40,3 +40,50 @@ def test_main_launches_gui(mocked_gui):
     window_class.assert_called_once()
     window_instance.show.assert_called_once()
     app_instance.exec.assert_called_once()
+
+
+@pytest.fixture
+def real_main_window(monkeypatch):
+    """Import the real main_window with PyQt6 stubbed.
+
+    QThread and QMainWindow must be real (stub) classes because the
+    module subclasses them; the other Qt names are MagicMocks. The
+    verdict -> display-text mapping function itself does not use Qt.
+    """
+    qtcore = MagicMock()
+    qtcore.QThread = type("QThread", (), {"__init__": lambda self, *a, **k: None})
+    qtcore.pyqtSignal = lambda *a, **k: MagicMock()
+    qtwidgets = MagicMock()
+    qtwidgets.QMainWindow = type("QMainWindow", (), {"__init__": lambda self, *a, **k: None})
+    monkeypatch.setitem(sys.modules, "PyQt6", MagicMock())
+    monkeypatch.setitem(sys.modules, "PyQt6.QtCore", qtcore)
+    monkeypatch.setitem(sys.modules, "PyQt6.QtWidgets", qtwidgets)
+    sys.modules.pop("bios_build_gui.gui.main_window", None)
+    from bios_build_gui.gui import main_window
+
+    return main_window
+
+
+def test_verify_display_mapping(real_main_window):
+    """I4 v2: the verdict -> display-text mapping, all three verdicts
+    plus the cancelled case."""
+    from bios_build_gui.boot_verify import (
+        VERDICT_BOOTED,
+        VERDICT_BOOT_TO_SHELL_FAIL,
+        VERDICT_NOT_BOOTED,
+    )
+
+    fn = real_main_window._verify_display_text
+    assert fn(VERDICT_BOOTED, "some output", timeout=30, cancelled=False) == (
+        "Booted: UEFI shell prompt observed.\n" + "some output"
+    )
+    assert fn(VERDICT_BOOT_TO_SHELL_FAIL, "some output", timeout=30, cancelled=False) == (
+        "Boot to shell failed: firmware reached the Boot Manager but the "
+        "shell prompt was not observed within 30 s.\n" + "some output"
+    )
+    assert fn(VERDICT_NOT_BOOTED, "some output", timeout=30, cancelled=False) == (
+        "Not booted: firmware did not reach the Boot Manager within 30 s.\n" + "some output"
+    )
+    # A cancelled run shows "Cancelled", not a failure verdict.
+    assert fn(VERDICT_BOOT_TO_SHELL_FAIL, "some output", timeout=30, cancelled=True) == "Cancelled"
+    assert fn(VERDICT_NOT_BOOTED, "some output", timeout=30, cancelled=True) == "Cancelled"
